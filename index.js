@@ -3,7 +3,7 @@ const { PubSub } = require('graphql-subscriptions');
 const pubsub = new PubSub();
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-
+const bcrypt = require('bcrypt');
 const mongoose = require('mongoose');
 const Author = require('./models/Author');
 const Book = require('./models/Book');
@@ -11,7 +11,7 @@ const User = require('./models/User');
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const JWT_SECRET = process.env.JWT_SECRET;
-const PASSWORD = process.env.PASSWORD;
+// const PASSWORD = process.env.PASSWORD;
 
 console.log('connecting to ', MONGODB_URI);
 
@@ -28,6 +28,8 @@ mongoose
     .catch(error => {
         console.log('error connecting to MongoDB: ', error.message);
     });
+
+// mongoose.set('debug', true);
 
 const typeDefs = gql`
     type Book {
@@ -52,6 +54,7 @@ const typeDefs = gql`
 
     type User {
         username: String!
+        password: String!
         favoriteGenre: String!
         id: ID!
     }
@@ -72,7 +75,7 @@ const typeDefs = gql`
     type Mutation {
         addBook(title: String!, author: String!, published: Int!, genres: [String!]): Book
         editAuthor(name: String!, setBornTo: Int!): Author
-        createUser(username: String!, favoriteGenre: String!): User
+        createUser(username: String!, password: String!, favoriteGenre: String!): User
         login(username: String!, password: String!): Token
     }
 
@@ -192,8 +195,15 @@ const resolvers = {
             }
             return await Author.findOne({ name: args.name });
         },
-        createUser: (root, args) => {
-            const user = new User({ username: args.username, favoriteGenre: args.favoriteGenre });
+        createUser: async (root, { username, password, favoriteGenre }) => {
+            // username, password, and favoriteGenre are destructured from the args
+            const saltRounds = 12;
+
+            const user = new User();
+            user.username = username;
+            user.password = await bcrypt.hash(password, saltRounds);
+            console.log('user.password: ', user.password);
+            user.favoriteGenre = favoriteGenre;
 
             return user.save().catch(error => {
                 throw new UserInputError(error.message, {
@@ -202,10 +212,22 @@ const resolvers = {
             });
         },
         login: async (root, args) => {
+            console.log('username in login: ', args.username);
+            console.log('password in login: ', args.password);
             const user = await User.findOne({ username: args.username });
+            console.log('logged in user', user);
+            console.log('logged in user password', user.password);
+            if (!user) {
+                throw new UserInputError('No user found');
+            }
 
-            if (!user || args.password !== PASSWORD) {
-                throw new UserInputError('username or password is incorrect');
+            // user.password contains the hashed password
+            // bcrypt with compare the password from the args to the hashed password from our user
+
+            const isValid = await bcrypt.compare(args.password, user.password);
+            console.log('isValid: ', isValid);
+            if (!isValid) {
+                throw new UserInputError('Incorrect password');
             }
 
             const userForToken = {
@@ -231,7 +253,6 @@ const server = new ApolloServer({
 
         if (auth && auth.toLowerCase().startsWith('bearer ')) {
             const decodedToken = jwt.verify(auth.substring(7), JWT_SECRET);
-
             const currentUser = await User.findById(decodedToken.id);
 
             return { currentUser };
