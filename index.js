@@ -216,14 +216,12 @@ const resolvers = {
             console.log('password in login: ', args.password);
             const user = await User.findOne({ username: args.username });
             console.log('logged in user', user);
-            console.log('logged in user password', user.password);
             if (!user) {
                 throw new UserInputError('No user found');
             }
 
             // user.password contains the hashed password
             // bcrypt with compare the password from the args to the hashed password from our user
-
             const isValid = await bcrypt.compare(args.password, user.password);
             console.log('isValid: ', isValid);
             if (!isValid) {
