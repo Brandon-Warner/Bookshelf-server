@@ -202,7 +202,7 @@ const resolvers = {
             const user = new User();
             user.username = username;
             user.password = await bcrypt.hash(password, saltRounds);
-            console.log('user.password: ', user.password);
+            // console.log('user.password: ', user.password);
             user.favoriteGenre = favoriteGenre;
 
             return user.save().catch(error => {
@@ -212,10 +212,10 @@ const resolvers = {
             });
         },
         login: async (root, args) => {
-            console.log('username in login: ', args.username);
-            console.log('password in login: ', args.password);
+            // console.log('username in login: ', args.username);
+            // console.log('password in login: ', args.password);
             const user = await User.findOne({ username: args.username });
-            console.log('logged in user', user);
+            // console.log('logged in user', user);
             if (!user) {
                 throw new UserInputError('No user found');
             }
